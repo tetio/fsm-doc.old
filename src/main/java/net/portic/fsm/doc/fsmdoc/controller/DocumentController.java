@@ -25,4 +25,10 @@ public class DocumentController {
         return documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found with id = "+documentId));
     }
+
+//    @GetMapping("/documents/key/{key}")
+//    public Document getDocumentByKey(@PathVariable String key) {
+//        return documentRepository.findOne(documentId)
+//                .orElseThrow(() -> new ResourceNotFoundException("Document not found with id = "+documentId));
+//    }
 }

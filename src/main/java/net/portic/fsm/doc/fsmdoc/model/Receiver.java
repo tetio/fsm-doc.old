@@ -3,13 +3,14 @@ package net.portic.fsm.doc.fsmdoc.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
+import sun.util.resources.cldr.gv.LocaleNames_gv;
 
 import javax.persistence.*;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 
 @Entity
-@Table(name = "document_receiver")
+@Table(name = "receiver")
 public class Receiver extends AuditModel {
     @Id
     @GeneratedValue(generator = "doc_receiver_generator")
@@ -24,11 +25,9 @@ public class Receiver extends AuditModel {
     @Size(min = 3, max = 32)
     private String receiver;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "document_id", nullable = false)
-    @OnDelete(action = OnDeleteAction.CASCADE)
-    @JsonIgnore
-    private Document document;
+
+    @Column(name = "document_id", nullable = false)
+    private Long documentId;
 
 
     public Long getId() {
@@ -47,11 +46,11 @@ public class Receiver extends AuditModel {
         this.receiver = receiver;
     }
 
-    public Document getDocument() {
-        return document;
+    public Long getDocumentId() {
+        return documentId;
     }
 
-    public void setDocument(Document document) {
-        this.document = document;
+    public void setDocumentId(Long documentId) {
+        this.documentId = documentId;
     }
 }

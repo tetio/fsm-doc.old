@@ -1,10 +1,11 @@
 package net.portic.fsm.doc.fsmdoc.model;
 
 import javax.persistence.*;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "fsm_doc")
+@Table(name = "document")
 public class Document extends AuditModel {
     @Id
     @GeneratedValue(generator = "fsm_doc_generator")
@@ -28,7 +29,8 @@ public class Document extends AuditModel {
     private String state;
 
     @OneToMany(fetch = FetchType.EAGER)
-    private List<Receiver> receivers;
+    @JoinColumn(name = "document_id")
+    private List<Receiver> receivers = new ArrayList<>();
 
     public Long getId() {
         return id;
@@ -68,5 +70,13 @@ public class Document extends AuditModel {
 
     public void setState(String state) {
         this.state = state;
+    }
+
+    public List<Receiver> getReceivers() {
+        return receivers;
+    }
+
+    public void setReceivers(List<Receiver> receivers) {
+        this.receivers = receivers;
     }
 }
