@@ -5,8 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "document")
-public class Document extends AuditModel {
+@Table(name = "fsm_doc")
+public class FsmDoc extends AuditModel {
     @Id
     @GeneratedValue(generator = "fsm_doc_generator")
     @SequenceGenerator(
@@ -30,7 +30,7 @@ public class Document extends AuditModel {
 
     @OneToMany(fetch = FetchType.EAGER)
     @JoinColumn(name = "document_id")
-    private List<Receiver> receivers = new ArrayList<>();
+    private List<FsmDocReceiver> fsmDocReceivers = new ArrayList<>();
 
     public Long getId() {
         return id;
@@ -72,11 +72,11 @@ public class Document extends AuditModel {
         this.state = state;
     }
 
-    public List<Receiver> getReceivers() {
-        return receivers;
+    public List<FsmDocReceiver> getFsmDocReceivers() {
+        return fsmDocReceivers;
     }
 
-    public void setReceivers(List<Receiver> receivers) {
-        this.receivers = receivers;
+    public void setFsmDocReceivers(List<FsmDocReceiver> fsmDocReceivers) {
+        this.fsmDocReceivers = fsmDocReceivers;
     }
 }

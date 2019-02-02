@@ -1,17 +1,12 @@
 package net.portic.fsm.doc.fsmdoc.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
-import sun.util.resources.cldr.gv.LocaleNames_gv;
-
 import javax.persistence.*;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 
 @Entity
-@Table(name = "receiver")
-public class Receiver extends AuditModel {
+@Table(name = "fsm_doc_receiver")
+public class FsmDocReceiver extends AuditModel {
     @Id
     @GeneratedValue(generator = "doc_receiver_generator")
     @SequenceGenerator(
@@ -26,7 +21,7 @@ public class Receiver extends AuditModel {
     private String receiver;
 
 
-    @Column(name = "document_id", nullable = false)
+    @Column(name = "fsm_doc_id", nullable = false)
     private Long documentId;
 
 
