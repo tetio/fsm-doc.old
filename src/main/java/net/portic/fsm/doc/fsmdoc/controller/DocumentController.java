@@ -2,6 +2,7 @@ package net.portic.fsm.doc.fsmdoc.controller;
 
 import net.portic.fsm.doc.fsmdoc.exception.ResourceNotFoundException;
 import net.portic.fsm.doc.fsmdoc.model.FsmDoc;
+import net.portic.fsm.doc.fsmdoc.model.FsmDocReceiver;
 import net.portic.fsm.doc.fsmdoc.model.FsmMsg;
 import net.portic.fsm.doc.fsmdoc.repository.FsmDocRepository;
 import net.portic.fsm.doc.fsmdoc.repository.FsmMsgRepository;
@@ -9,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import javax.transaction.Transactional;
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -37,7 +39,7 @@ public class DocumentController {
 //    }
 
     @PostMapping("/notify")
-    public FsmDoc notify(@RequestBody MsgDto msgDto) {
+    public NotifyResult notify(@RequestBody MsgDto msgDto) {
 
         return doNotify(msgDto);
     }
@@ -55,11 +57,12 @@ public class DocumentController {
         msg.setSender(msgDto.sender);
         msg.setTrackId(msgDto.trackId);
         msg.setMsgDate(msgDto.when);
+        msg.setState(MsgStateCode.PROCESSING.getName());
         return msg;
     }
 
     @Transactional
-    private FsmDoc doNotify(MsgDto msgDto) {
+    private NotifyResult doNotify(MsgDto msgDto) {
         String docKey = makeDocKey(msgDto.getSender(), msgDto.getDocType(), msgDto.getDocNum());
         String msgKey = makeMsgKey(msgDto.trackId, msgDto.msgNum);
         FsmMsg msg = fsmMsgRepository.findByKey(msgKey)
@@ -70,22 +73,44 @@ public class DocumentController {
                     FsmMsg auxMsg = makeFsmMsg(msgDto, msgKey);
                     return fsmMsgRepository.save(auxMsg);
                 });
-        return fsmDocRepository.findByKey(docKey)
-                .map(fsmDoc -> {
-                    fsmDoc.setState("STOPPED");
+        FsmDoc doc =  fsmDocRepository.findByKey(docKey)
+                .map(fsmDoc ->
+                     fsmDocRepository.save(fsmDoc)
+                ).orElseGet(() -> newFsmDoc(msg, docKey));
 
+        return processNewDocument(msg, doc);
 
-                    return fsmDocRepository.save(fsmDoc);
-                }).orElseGet(() -> newFsmDoc(msg, docKey));
 
 
     }
 
+    private NotifyResult processNewDocument(FsmMsg msg, FsmDoc doc) {
+        // Document does not exist
+        // Step 2
+        if (msg.getMsgFunction().equals(FunctionCode.ORIGINAL.getName())) {
+            fsmDocRepository.save(doc);
+            return new NotifyResult(ResultCode.SUCCESS.getName(), "New document created");
+        } else if (msg.getMsgFunction().equals(FunctionCode.REPLACEMENT.getName()) ||
+                msg.getMsgFunction().equals(FunctionCode.CANCELLATION.getName())) {
+            return new NotifyResult(ResultCode.ON_HOLD.getName(), "Message it's a replacement or cancellation and no original message has been found. it must be put on hold");
+        }
+        return new NotifyResult(ResultCode.UNKNOWN_DOCUMENT_FUNCTION.getName(), "Message function is unknown");
+    }
+
     private FsmDoc newFsmDoc(FsmMsg msg, String docKey) {
         FsmDoc fsmDoc = new FsmDoc();
+        fsmDoc.setDocNum(msg.getDocNum());
+        fsmDoc.setDocVersion(msg.getDocVersion());
+        fsmDoc.setSender(msg.getSender());
+        fsmDoc.setDocType(msg.getDocType());
         fsmDoc.setKey(docKey);
         fsmDoc.setState("PROCESSING");
-        fsmDoc.setType(msg.getDocType());
+        fsmDoc.setDocType(msg.getDocType());
+        FsmDocReceiver fsmDocReceiver = new FsmDocReceiver();
+        fsmDocReceiver.setReceiver(msg.getReceiver());
+        List<FsmDocReceiver> lfdr = new ArrayList<FsmDocReceiver>();
+        lfdr.add(fsmDocReceiver);
+        fsmDoc.setFsmDocReceivers(lfdr);
         return fsmDocRepository.save(fsmDoc);
     }
 

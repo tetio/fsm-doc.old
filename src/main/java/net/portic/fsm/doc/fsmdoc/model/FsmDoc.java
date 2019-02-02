@@ -19,11 +19,17 @@ public class FsmDoc extends AuditModel {
     @Column(name = "key", unique = true)
     private String key;
 
-    @Column(name = "type")
-    private String type;
+    @Column(name = "tdoc_ype")
+    private String docType;
 
-    @Column(name = "version")
-    private String version;
+    @Column(name = "doc_num")
+    private String docNum;
+
+    @Column(name = "doc_version")
+    private String docVersion;
+
+    @Column(name = "sender")
+    private String sender;
 
     @Column(name = "state")
     private String state;
@@ -31,6 +37,10 @@ public class FsmDoc extends AuditModel {
     @OneToMany(fetch = FetchType.EAGER)
     @JoinColumn(name = "document_id")
     private List<FsmDocReceiver> fsmDocReceivers = new ArrayList<>();
+
+//    history: DocumentHistory[]
+//    rejectionErrors: string[]
+
 
     public Long getId() {
         return id;
@@ -48,20 +58,36 @@ public class FsmDoc extends AuditModel {
         this.key = key;
     }
 
-    public String getType() {
-        return type;
+    public String getDocType() {
+        return docType;
     }
 
-    public void setType(String type) {
-        this.type = type;
+    public void setDocType(String docType) {
+        this.docType = docType;
     }
 
-    public String getVersion() {
-        return version;
+    public String getDocNum() {
+        return docNum;
     }
 
-    public void setVersion(String version) {
-        this.version = version;
+    public void setDocNum(String docNum) {
+        this.docNum = docNum;
+    }
+
+    public String getDocVersion() {
+        return docVersion;
+    }
+
+    public void setDocVersion(String docVersion) {
+        this.docVersion = docVersion;
+    }
+
+    public String getSender() {
+        return sender;
+    }
+
+    public void setSender(String sender) {
+        this.sender = sender;
     }
 
     public String getState() {
