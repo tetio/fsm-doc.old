@@ -35,7 +35,7 @@ public class FsmDoc extends AuditModel {
     private String state;
 
     @OneToMany(fetch = FetchType.EAGER)
-    @JoinColumn(name = "document_id")
+    @JoinColumn(name = "fsm_doc_id")
     private List<FsmDocReceiver> fsmDocReceivers = new ArrayList<>();
 
 //    history: DocumentHistory[]

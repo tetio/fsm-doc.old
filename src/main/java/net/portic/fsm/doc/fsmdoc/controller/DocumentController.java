@@ -4,6 +4,7 @@ import net.portic.fsm.doc.fsmdoc.exception.ResourceNotFoundException;
 import net.portic.fsm.doc.fsmdoc.model.FsmDoc;
 import net.portic.fsm.doc.fsmdoc.model.FsmDocReceiver;
 import net.portic.fsm.doc.fsmdoc.model.FsmMsg;
+import net.portic.fsm.doc.fsmdoc.repository.FsmDocReceiverRepository;
 import net.portic.fsm.doc.fsmdoc.repository.FsmDocRepository;
 import net.portic.fsm.doc.fsmdoc.repository.FsmMsgRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,9 @@ public class DocumentController {
 
     @Autowired
     private FsmMsgRepository fsmMsgRepository;
+
+    @Autowired
+    private FsmDocReceiverRepository fsmDocReceiverRepository;
 
     @GetMapping("/fsmdoc")
     public List<FsmDoc> getDocuments() {
@@ -108,10 +112,15 @@ public class DocumentController {
         fsmDoc.setDocType(msg.getDocType());
         FsmDocReceiver fsmDocReceiver = new FsmDocReceiver();
         fsmDocReceiver.setReceiver(msg.getReceiver());
-        List<FsmDocReceiver> lfdr = new ArrayList<FsmDocReceiver>();
-        lfdr.add(fsmDocReceiver);
-        fsmDoc.setFsmDocReceivers(lfdr);
-        return fsmDocRepository.save(fsmDoc);
+//        List<FsmDocReceiver> lfdr = new ArrayList<FsmDocReceiver>();
+//        lfdr.add(fsmDocReceiver);
+//        fsmDoc.setFsmDocReceivers(lfdr);
+
+        FsmDoc newDoc =  fsmDocRepository.save(fsmDoc);
+        fsmDocReceiver.setDocumentId(newDoc.getId());
+        fsmDocReceiverRepository.save(fsmDocReceiver);
+
+        return newDoc;
     }
 
     private String makeDocKey(String sender, String docType, String docNum) {
