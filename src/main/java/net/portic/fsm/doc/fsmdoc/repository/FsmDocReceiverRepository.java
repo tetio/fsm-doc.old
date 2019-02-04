@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface FsmDocReceiverRepository extends JpaRepository<FsmDocReceiver, Long> {
     List<FsmDocReceiver> findByDocumentId(Long documentId);
+    void deleteByDocumentId(Long documentId);
 }

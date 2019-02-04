@@ -25,8 +25,8 @@ public class FsmDoc extends AuditModel {
     @Column(name = "doc_num")
     private String docNum;
 
-    @Column(name = "doc_version")
-    private String docVersion;
+    @Column(name = "doc_current_version")
+    private String docCurrentVersion;
 
     @Column(name = "sender")
     private String sender;
@@ -74,12 +74,12 @@ public class FsmDoc extends AuditModel {
         this.docNum = docNum;
     }
 
-    public String getDocVersion() {
-        return docVersion;
+    public String getDocCurrentVersion() {
+        return docCurrentVersion;
     }
 
-    public void setDocVersion(String docVersion) {
-        this.docVersion = docVersion;
+    public void setDocCurrentVersion(String docCurrentVersion) {
+        this.docCurrentVersion = docCurrentVersion;
     }
 
     public String getSender() {

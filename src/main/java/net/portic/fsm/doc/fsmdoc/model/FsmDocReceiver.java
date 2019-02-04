@@ -20,10 +20,8 @@ public class FsmDocReceiver extends AuditModel {
     @Size(min = 3, max = 32)
     private String receiver;
 
-
     @Column(name = "fsm_doc_id", nullable = false)
     private Long documentId;
-
 
     public Long getId() {
         return id;
