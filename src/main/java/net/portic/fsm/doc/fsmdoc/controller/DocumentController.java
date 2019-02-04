@@ -71,6 +71,7 @@ public class DocumentController {
 
     @Transactional(Transactional.TxType.REQUIRES_NEW)
     private NotifyResult doNotify(MsgDto msgDto) {
+        NotifyResult result = null;
         String docKey = makeDocKey(msgDto.getSender(), msgDto.getDocType(), msgDto.getDocNum());
         String msgKey = makeMsgKey(msgDto.trackId, msgDto.msgNum);
         FsmMsg msg = fsmMsgRepository.findByKey(msgKey)
@@ -81,14 +82,12 @@ public class DocumentController {
                     FsmMsg auxMsg = makeFsmMsg(msgDto, msgKey);
                     return fsmMsgRepository.save(auxMsg);
                 });
-
-        NotifyResult result = null;
         try {
             result = fsmDocRepository.findByKey(docKey)
                     .map(fsmDoc -> processDocument(msg, fsmDocRepository.save(fsmDoc)))
                     .orElseGet(() -> processNewDocument(msg, fsmDocRepository.save(newFsmDoc(msg, docKey))));
         } catch (DataIntegrityViolationException e) {
-            // 
+            // Race condition, no doc existed and 2 messages tried to create the new document simultaneously
             return doNotify(msgDto);
         }
         return result;
