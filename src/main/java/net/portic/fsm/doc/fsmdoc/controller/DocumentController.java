@@ -7,15 +7,11 @@ import net.portic.fsm.doc.fsmdoc.model.FsmMsg;
 import net.portic.fsm.doc.fsmdoc.repository.FsmDocReceiverRepository;
 import net.portic.fsm.doc.fsmdoc.repository.FsmDocRepository;
 import net.portic.fsm.doc.fsmdoc.repository.FsmMsgRepository;
-import org.hibernate.JDBCException;
-import org.hibernate.engine.jdbc.spi.SqlExceptionHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.*;
-import sun.rmi.runtime.Log;
 
 import javax.transaction.Transactional;
-import java.sql.SQLException;
 import java.util.List;
 
 @RestController
@@ -47,14 +43,19 @@ public class DocumentController {
 //    }
 
     @PostMapping("/notify")
-    public NotifyResult notify(@RequestBody MsgDto msgDto) {
+    public FSMDocResult notify(@RequestBody MsgDto msgDto) {
 
-        return doNotify(msgDto);
+        return prepareNotify(msgDto);
+    }
+
+    @PostMapping("/deliver")
+    public FSMDocResult deliver(@RequestBody MsgDto msgDto) {
+
+        return prepareDeliver(msgDto);
     }
 
     private FsmMsg makeFsmMsg(MsgDto msgDto, String key) {
         FsmMsg msg = new FsmMsg();
-
         msg.setDocNum(msgDto.docNum);
         msg.setDocType(msgDto.docType);
         msg.setDocVersion(msgDto.docVersion);
@@ -70,8 +71,8 @@ public class DocumentController {
     }
 
     @Transactional(Transactional.TxType.REQUIRES_NEW)
-    private NotifyResult doNotify(MsgDto msgDto) {
-        NotifyResult result = null;
+    private FSMDocResult prepareNotify(MsgDto msgDto) {
+        FSMDocResult result;
         String docKey = makeDocKey(msgDto.getSender(), msgDto.getDocType(), msgDto.getDocNum());
         String msgKey = makeMsgKey(msgDto.trackId, msgDto.msgNum);
         FsmMsg msg = fsmMsgRepository.findByKey(msgKey)
@@ -87,45 +88,96 @@ public class DocumentController {
                     .map(fsmDoc -> processDocument(msg, fsmDocRepository.save(fsmDoc)))
                     .orElseGet(() -> processNewDocument(msg, fsmDocRepository.save(newFsmDoc(msg, docKey))));
         } catch (DataIntegrityViolationException e) {
-            // Race condition, no doc existed and 2 messages tried to create the new document simultaneously
-            return doNotify(msgDto);
+            // Race condition, no doc existed and at least two messages tried to create the new document simultaneously
+            return prepareNotify(msgDto);
         }
         return result;
     }
 
 
-    private NotifyResult processDocument(FsmMsg msg, FsmDoc doc) {
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
+    private FSMDocResult prepareDeliver(MsgDto msgDto) {
+        String docKey = makeDocKey(msgDto.getSender(), msgDto.getDocType(), msgDto.getDocNum());
+        String msgKey = makeMsgKey(msgDto.trackId, msgDto.msgNum);
+        return fsmMsgRepository.findByKey(msgKey)
+                .map(msg -> fsmDocRepository.findByKey(docKey)
+                        .map(doc -> doDeliver(msg, doc, msgKey, docKey))
+                        .orElseGet(() -> new FSMDocResult(ResultCode.ERROR.getName(), String.format("doDeliver: No document Found key=[%s]", docKey)))
+                ).orElseGet(() -> new FSMDocResult(ResultCode.ERROR.getName(), String.format("doDeliver: No message Found key=[%s]", msgKey)));
+    }
+
+    private FSMDocResult doDeliver(FsmMsg msg, FsmDoc doc, String msgKey, String docKey) {
+        if (msg.getDocVersion().equals(doc.getDocCurrentVersion())) {
+            if (doc.getState().equals(DocStateCode.PROCESSING.getName()) ||
+                    doc.getState().equals(DocStateCode.ERROR.getName())) {
+                doc.setState(DocStateCode.DELIVERED.getName());
+                msg.setState(MsgStateCode.DELIVERED.getName());
+                fsmDocRepository.save(doc);
+                fsmMsgRepository.save(msg);
+                return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("Message [%s] and Document [%s] updated ", msgKey, docKey));
+//            } else if (thereIsResponse(doc.getState())) {
+//                // Could be a message being reprocessed and the there is already a response
+//                msg.setState(MsgStateCode.DELIVERED.getName());
+//                fsmMsgRepository.save(msg);
+//                return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("Message [%s]  updated, document is with response ", msgKey));
+            } else {
+                // Could be a message being reprocessed and it's beeing delivered again
+                // Only msg data is updated!!!
+                msg.setState(MsgStateCode.DELIVERED.getName());
+                fsmMsgRepository.save(msg);
+                return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("Only message [%s] is updated", msgKey));
+            }
+        } else if (msg.getDocVersion().compareTo(doc.getDocCurrentVersion()) > 0) {
+            doc.setState(DocStateCode.DELIVERED.getName());
+            doc.setDocCurrentVersion(msg.getDocVersion());
+            msg.setState(MsgStateCode.DELIVERED.getName());
+            fsmDocRepository.save(doc);
+            fsmMsgRepository.save(msg);
+            return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("Message [%s] and Document [%s] updated and version too ", msgKey, docKey));
+        } else {
+            msg.setState(MsgStateCode.DELIVERED.getName());
+            fsmMsgRepository.save(msg);
+            return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("Only message [%s] is updated, version as older then current version", msgKey));
+        }
+    }
+
+    private FSMDocResult processDocument(FsmMsg msg, FsmDoc doc) {
         // Document exists
         // cases 3, 4, 5
         if (msg.getDocVersion().compareTo(doc.getDocCurrentVersion()) < 0) {
             // 3. Message version is a previous version of the document
-            return new NotifyResult(ResultCode.OUT_OF_SEQUENCE.getName(), "Message references an older version of the document");
+            return new FSMDocResult(ResultCode.OUT_OF_SEQUENCE.getName(), "Message references an older version of the document");
         } else if (msg.getDocVersion().compareTo(doc.getDocCurrentVersion()) == 0) {
             // 4. message version is equal than document version
             if (thereIsResponse(doc.getState())) {
-                return new NotifyResult(ResultCode.ERROR.getName(), "There is a response for this version of the document");
-            } else if (doc.getFsmDocReceivers().stream().filter(r -> r.getReceiver().equals(msg.getReceiver())).count() == 0) {
+                return new FSMDocResult(ResultCode.ERROR.getName(), "There is a response for this version of the document");
+            } else if (doc.getFsmDocReceivers().stream().noneMatch(r -> r.getReceiver().equals(msg.getReceiver()))) {
                 FsmDocReceiver fsmDocReceiver = new FsmDocReceiver();
                 fsmDocReceiver.setDocumentId(doc.getId());
                 fsmDocReceiver.setReceiver(msg.getReceiver());
                 fsmDocReceiverRepository.save(fsmDocReceiver);
-                return new NotifyResult(ResultCode.SUCCESS.getName(), "Same message but for another receiver");
+                return new FSMDocResult(ResultCode.SUCCESS.getName(), "Same message but for another receiver");
+            } else if (msg.getReprocessed()) {
+                // Message is being reprocessed
+                doc.setState(DocStateCode.PROCESSING.getName());
+                fsmDocRepository.save(doc);
+                return new FSMDocResult(ResultCode.SUCCESS.getName(), "Message reprocessed ???. Change state to processing");
             } else {
-                return new NotifyResult(ResultCode.SUCCESS.getName(), "Message reprocessed ???");
+                return new FSMDocResult(ResultCode.ERROR.getName(), "Message with  existing key ans it's not being reprocessed. CHECK THIS CASE.");
             }
         } else {
             // 5. message version is newer than document current version
             if (msg.getMsgFunction().equals(FunctionCode.ORIGINAL.getName())) {
                 // message with an original is not allowed
-                return new NotifyResult(ResultCode.OUT_OF_SEQUENCE.getName(), "Message with an original is not allowed");
+                return new FSMDocResult(ResultCode.OUT_OF_SEQUENCE.getName(), "Message with an original is not allowed");
             } else if (doc.getState().equals(DocStateCode.CANCELLED.getName())) {
                 // Document already rejected
-                return new NotifyResult(ResultCode.CANCELLED.getName(), "Document already rejected");
+                return new FSMDocResult(ResultCode.CANCELLED.getName(), "Document already rejected");
             } else if (doc.getState().equals(DocStateCode.PROCESSING.getName())) {
                 // Previous version is still processing
                 msg.setState(MsgStateCode.ON_HOLD.getName());
                 fsmMsgRepository.save(msg);
-                return new NotifyResult(ResultCode.ON_HOLD.getName(), "Document's previous version is still processing");
+                return new FSMDocResult(ResultCode.ON_HOLD.getName(), "Document's previous version is still processing");
             } else {
                 // update document with new version and carry on with msg processing
                 fsmDocReceiverRepository.deleteByDocumentId(doc.getId());
@@ -135,7 +187,7 @@ public class DocumentController {
                 fsmDocReceiverRepository.save(fsmDocReceiver);
                 doc.setDocCurrentVersion(msg.getDocVersion());
                 fsmDocRepository.save(doc);
-                return new NotifyResult(ResultCode.SUCCESS.getName(), "Update document with new version and carry on with msg processing");
+                return new FSMDocResult(ResultCode.SUCCESS.getName(), "Update document with new version and carry on with msg processing");
             }
         }
     }
@@ -144,17 +196,17 @@ public class DocumentController {
         return (state.equals(DocStateCode.ACCEPTED.getName()) || state.equals(DocStateCode.REJECTED.getName()));
     }
 
-    private NotifyResult processNewDocument(FsmMsg msg, FsmDoc doc) {
+    private FSMDocResult processNewDocument(FsmMsg msg, FsmDoc doc) {
         // Document does not exist
         // Step 2
         if (msg.getMsgFunction().equals(FunctionCode.ORIGINAL.getName())) {
             fsmDocRepository.save(doc);
-            return new NotifyResult(ResultCode.SUCCESS.getName(), "New document created");
+            return new FSMDocResult(ResultCode.SUCCESS.getName(), "New document created");
         } else if (msg.getMsgFunction().equals(FunctionCode.REPLACEMENT.getName()) ||
                 msg.getMsgFunction().equals(FunctionCode.CANCELLATION.getName())) {
-            return new NotifyResult(ResultCode.ON_HOLD.getName(), "Message it's a replacement or cancellation and no original message has been found. it must be put on hold");
+            return new FSMDocResult(ResultCode.ON_HOLD.getName(), "Message it's a replacement or cancellation and no original message has been found. it must be put on hold");
         }
-        return new NotifyResult(ResultCode.UNKNOWN_DOCUMENT_FUNCTION.getName(), "Message function is unknown");
+        return new FSMDocResult(ResultCode.UNKNOWN_DOCUMENT_FUNCTION.getName(), "Message function is unknown");
     }
 
     private FsmDoc newFsmDoc(FsmMsg msg, String docKey) {
@@ -172,7 +224,7 @@ public class DocumentController {
 //        lfdr.add(fsmDocReceiver);
 //        fsmDoc.setFsmDocReceivers(lfdr);
 
-        FsmDoc newDoc =  fsmDocRepository.save(fsmDoc);
+        FsmDoc newDoc = fsmDocRepository.save(fsmDoc);
         fsmDocReceiver.setDocumentId(newDoc.getId());
         fsmDocReceiverRepository.save(fsmDocReceiver);
 
@@ -186,7 +238,6 @@ public class DocumentController {
     private String makeMsgKey(String trackId, String msgNum) {
         return String.format("%s###%s", trackId, msgNum);
     }
-
 
 
     ////////////////////////////////////////////////
