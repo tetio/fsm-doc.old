@@ -44,13 +44,11 @@ public class DocumentController {
 
     @PostMapping("/notify")
     public FSMDocResult notify(@RequestBody MsgDto msgDto) {
-
         return prepareNotify(msgDto);
     }
 
     @PostMapping("/deliver")
     public FSMDocResult deliver(@RequestBody MsgDto msgDto) {
-
         return prepareDeliver(msgDto);
     }
 
@@ -107,6 +105,11 @@ public class DocumentController {
     }
 
     private FSMDocResult doDeliver(FsmMsg msg, FsmDoc doc, String msgKey, String docKey) {
+        if (msg.getState().equals(MsgStateCode.ON_HOLD.getName())) {
+            // Message on Hold, nothing to do on msg and doc, just continue
+            return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("Message [%s] is ON HOLD", msgKey));
+        }
+
         if (msg.getDocVersion().equals(doc.getDocCurrentVersion())) {
             if (doc.getState().equals(DocStateCode.PROCESSING.getName()) ||
                     doc.getState().equals(DocStateCode.ERROR.getName())) {
@@ -115,11 +118,6 @@ public class DocumentController {
                 fsmDocRepository.save(doc);
                 fsmMsgRepository.save(msg);
                 return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("Message [%s] and Document [%s] updated ", msgKey, docKey));
-//            } else if (thereIsResponse(doc.getState())) {
-//                // Could be a message being reprocessed and the there is already a response
-//                msg.setState(MsgStateCode.DELIVERED.getName());
-//                fsmMsgRepository.save(msg);
-//                return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("Message [%s]  updated, document is with response ", msgKey));
             } else {
                 // Could be a message being reprocessed and it's beeing delivered again
                 // Only msg data is updated!!!
@@ -180,13 +178,15 @@ public class DocumentController {
                 return new FSMDocResult(ResultCode.ON_HOLD.getName(), "Document's previous version is still processing");
             } else {
                 // update document with new version and carry on with msg processing
+                doc.setDocCurrentVersion(msg.getDocVersion());
+                fsmDocRepository.save(doc);
+
                 fsmDocReceiverRepository.deleteByDocumentId(doc.getId());
                 FsmDocReceiver fsmDocReceiver = new FsmDocReceiver();
                 fsmDocReceiver.setDocumentId(doc.getId());
                 fsmDocReceiver.setReceiver(msg.getReceiver());
                 fsmDocReceiverRepository.save(fsmDocReceiver);
-                doc.setDocCurrentVersion(msg.getDocVersion());
-                fsmDocRepository.save(doc);
+
                 return new FSMDocResult(ResultCode.SUCCESS.getName(), "Update document with new version and carry on with msg processing");
             }
         }
