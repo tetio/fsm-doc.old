@@ -42,15 +42,21 @@ public class DocumentController {
 //                .orElseThrow(() -> new ResourceNotFoundException("Document not found with id = "+documentId));
 //    }
 
-    @PostMapping("/notify")
+    @PostMapping("/msg/notify")
     public FSMDocResult notify(@RequestBody MsgDto msgDto) {
         return prepareNotify(msgDto);
     }
 
-    @PostMapping("/deliver")
+    @PostMapping("/msg/deliver")
     public FSMDocResult deliver(@RequestBody MsgDto msgDto) {
         return prepareDeliver(msgDto);
     }
+
+    @PostMapping("/aperak/notify")
+    public FSMDocResult aoerakNotify(@RequestBody AperakDto aperakDto) {
+        return prepareAperakResponse(aperakDto);
+    }
+
 
     private FsmMsg makeFsmMsg(MsgDto msgDto, String key) {
         FsmMsg msg = new FsmMsg();
@@ -102,6 +108,25 @@ public class DocumentController {
                         .map(doc -> doDeliver(msg, doc, msgKey, docKey))
                         .orElseGet(() -> new FSMDocResult(ResultCode.ERROR.getName(), String.format("doDeliver: No document Found key=[%s]", docKey)))
                 ).orElseGet(() -> new FSMDocResult(ResultCode.ERROR.getName(), String.format("doDeliver: No message Found key=[%s]", msgKey)));
+    }
+
+
+    @Transactional
+    private FSMDocResult prepareAperakResponse(AperakDto aperakDto) {
+        return fsmMsgRepository.findBySenderAndDocTypeAndDocNumAndDocVersion(aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion())
+                .map(msg ->
+                        doAperakResponse(aperakDto, msg)
+                ).orElseGet(() ->
+                        new FSMDocResult(ResultCode.ERROR.getName(), String.format("prepareAperakResponse: Original message not found: sender(%s), docType(%s), docNum(%s), docVersion(%s)", aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion())));
+    }
+
+    private FSMDocResult doAperakResponse(AperakDto aperakDto, FsmMsg msg) {
+        msg.setState(MsgStateCode.ACKNOWLEDGED.getName());
+        fsmMsgRepository.save(msg);
+
+
+
+        return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("prepareAperakResponse: aperak added ok sender(%s), docType(%s), docNum(%s), docVersion(%s)", aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion()));
     }
 
     private FSMDocResult doDeliver(FsmMsg msg, FsmDoc doc, String msgKey, String docKey) {
