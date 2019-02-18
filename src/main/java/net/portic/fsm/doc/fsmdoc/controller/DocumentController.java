@@ -53,7 +53,7 @@ public class DocumentController {
     }
 
     @PostMapping("/aperak/notify")
-    public FSMDocResult aoerakNotify(@RequestBody AperakDto aperakDto) {
+    public FSMDocResult aperakNotify(@RequestBody AperakDto aperakDto) {
         return prepareAperakResponse(aperakDto);
     }
 
@@ -105,8 +105,8 @@ public class DocumentController {
         String msgKey = makeMsgKey(msgDto.trackId, msgDto.msgNum);
         return fsmMsgRepository.findByKey(msgKey)
                 .map(msg -> fsmDocRepository.findByKey(docKey)
-                        .map(doc -> doDeliver(msg, doc, msgKey, docKey))
-                        .orElseGet(() -> new FSMDocResult(ResultCode.ERROR.getName(), String.format("doDeliver: No document Found key=[%s]", docKey)))
+                    .map(doc -> doDeliver(msg, doc, msgKey, docKey))
+                    .orElseGet(() -> new FSMDocResult(ResultCode.ERROR.getName(), String.format("doDeliver: No document Found key=[%s]", docKey)))
                 ).orElseGet(() -> new FSMDocResult(ResultCode.ERROR.getName(), String.format("doDeliver: No message Found key=[%s]", msgKey)));
     }
 
@@ -115,17 +115,15 @@ public class DocumentController {
     private FSMDocResult prepareAperakResponse(AperakDto aperakDto) {
         return fsmMsgRepository.findBySenderAndDocTypeAndDocNumAndDocVersion(aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion())
                 .map(msg ->
-                        doAperakResponse(aperakDto, msg)
+                    doAperakResponse(aperakDto, msg)
                 ).orElseGet(() ->
-                        new FSMDocResult(ResultCode.ERROR.getName(), String.format("prepareAperakResponse: Original message not found: sender(%s), docType(%s), docNum(%s), docVersion(%s)", aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion())));
+                    new FSMDocResult(ResultCode.ERROR.getName(), String.format("prepareAperakResponse: Original message not found: sender(%s), docType(%s), docNum(%s), docVersion(%s)", aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion()))
+                );
     }
 
     private FSMDocResult doAperakResponse(AperakDto aperakDto, FsmMsg msg) {
         msg.setState(MsgStateCode.ACKNOWLEDGED.getName());
         fsmMsgRepository.save(msg);
-
-
-
         return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("prepareAperakResponse: aperak added ok sender(%s), docType(%s), docNum(%s), docVersion(%s)", aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion()));
     }
 
