@@ -27,7 +27,8 @@ public class DocumentController {
 
     @GetMapping("/fsmdoc")
     public List<FsmDoc> getDocuments() {
-        return fsmDocRepository.findAll();
+        List<FsmDoc> list = fsmDocRepository.findAll();
+        return list;
     }
 
     @GetMapping("/fsmdoc/{documentId}")
@@ -92,6 +93,8 @@ public class DocumentController {
                     .map(fsmDoc -> processDocument(msg, fsmDocRepository.save(fsmDoc)))
                     .orElseGet(() -> processNewDocument(msg, fsmDocRepository.save(newFsmDoc(msg, docKey))));
         } catch (DataIntegrityViolationException e) {
+//            Caused by: org.postgresql.util.PSQLException: ERROR: duplicate key value violates unique constraint "uk_hq0ox5o2fsu70lvamkq04ht3g"
+//            Detail: Key (key)=(ESA787878###COPINOE04###23383073) already exists.
             // Race condition, no doc existed and at least two messages tried to create the new document simultaneously
             return prepareNotify(msgDto);
         }
