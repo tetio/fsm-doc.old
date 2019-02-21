@@ -133,7 +133,7 @@ public class DocumentController {
     private FSMDocResult doDeliver(FsmMsg msg, FsmDoc doc, String msgKey, String docKey) {
         if (msg.getState().equals(MsgStateCode.ON_HOLD.getName())) {
             // Message on Hold, nothing to do on msg and doc, just continue
-            return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("Message [%s] is ON HOLD", msgKey));
+            return new FSMDocResult(ResultCode.ON_HOLD.getName(), String.format("Message [%s] is ON HOLD, can't be processed", msgKey));
         }
 
         if (msg.getDocVersion().equals(doc.getDocCurrentVersion())) {
