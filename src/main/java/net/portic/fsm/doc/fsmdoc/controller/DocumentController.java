@@ -15,6 +15,7 @@ import javax.transaction.Transactional;
 import java.util.List;
 
 @RestController
+@RequestMapping("${spring.data.rest.base-path}")
 public class DocumentController {
     @Autowired
     private FsmDocRepository fsmDocRepository;
@@ -126,6 +127,9 @@ public class DocumentController {
 
     private FSMDocResult doAperakResponse(AperakDto aperakDto, FsmMsg msg) {
         msg.setState(MsgStateCode.ACKNOWLEDGED.getName());
+
+        // TODO check aperak function and update origina msg and doc/ver
+
         fsmMsgRepository.save(msg);
         return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("prepareAperakResponse: aperak added ok sender(%s), docType(%s), docNum(%s), docVersion(%s)", aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion()));
     }
