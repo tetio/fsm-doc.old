@@ -10,9 +10,11 @@ import net.portic.fsm.doc.fsmdoc.repository.FsmMsgRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.*;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import javax.transaction.Transactional;
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("${spring.data.rest.base-path}")
@@ -55,10 +57,14 @@ public class DocumentController {
     }
 
     @PostMapping("/aperak/notify")
-    public FSMDocResult aperakNotify(@RequestBody AperakDto aperakDto) {
-        return prepareAperakResponse(aperakDto);
+    public FSMDocResult notifyAperak(@RequestBody AperakDto aperakDto) {
+        return prepareNotifyAperak(aperakDto);
     }
 
+    @PostMapping("/aperak/deliver")
+    public FSMDocResult deliverAperak(@RequestBody AperakDto aperakDto) {
+        return prepareDeliverAperak(aperakDto);
+    }
 
     private FsmMsg makeFsmMsg(MsgDto msgDto, String key) {
         FsmMsg msg = new FsmMsg();
@@ -80,18 +86,11 @@ public class DocumentController {
     private FSMDocResult prepareNotify(MsgDto msgDto) {
         FSMDocResult result;
         String docKey = makeDocKey(msgDto.getSender(), msgDto.getDocType(), msgDto.getDocNum());
-        String msgKey = makeMsgKey(msgDto.trackId, msgDto.msgNum);
-        FsmMsg msg = fsmMsgRepository.findByKey(msgKey)
-                .map(aMsg -> {
-                    aMsg.setReprocessed(true);
-                    return fsmMsgRepository.save(aMsg);
-                }).orElseGet(() -> {
-                    FsmMsg auxMsg = makeFsmMsg(msgDto, msgKey);
-                    return fsmMsgRepository.save(auxMsg);
-                });
+        FsmMsg msg = getFsmMsg(msgDto);
         try {
             result = fsmDocRepository.findByKey(docKey)
-                    .map(fsmDoc -> processDocument(msg, fsmDocRepository.save(fsmDoc)))
+                    // why? .map(fsmDoc -> processDocument(msg, fsmDocRepository.save(fsmDoc)))
+                    .map(fsmDoc -> processDocument(msg, fsmDoc))
                     .orElseGet(() -> processNewDocument(msg, fsmDocRepository.save(newFsmDoc(msg, docKey))));
         } catch (DataIntegrityViolationException e) {
 //            Caused by: org.postgresql.util.PSQLException: ERROR: duplicate key value violates unique constraint "uk_hq0ox5o2fsu70lvamkq04ht3g"
@@ -102,6 +101,18 @@ public class DocumentController {
         return result;
     }
 
+    private FsmMsg getFsmMsg(MsgDto msgDto) {
+        String msgKey = makeMsgKey(msgDto.trackId, msgDto.msgNum);
+        return fsmMsgRepository.findByKey(msgKey)
+                .map(aMsg -> {
+                    aMsg.setReprocessed(true);
+                    return fsmMsgRepository.save(aMsg);
+                }).orElseGet(() -> {
+                    FsmMsg auxMsg = makeFsmMsg(msgDto, msgKey);
+                    return fsmMsgRepository.save(auxMsg);
+                });
+    }
+
 
     @Transactional(Transactional.TxType.REQUIRES_NEW)
     private FSMDocResult prepareDeliver(MsgDto msgDto) {
@@ -109,30 +120,36 @@ public class DocumentController {
         String msgKey = makeMsgKey(msgDto.trackId, msgDto.msgNum);
         return fsmMsgRepository.findByKey(msgKey)
                 .map(msg -> fsmDocRepository.findByKey(docKey)
-                    .map(doc -> doDeliver(msg, doc, msgKey, docKey))
-                    .orElseGet(() -> new FSMDocResult(ResultCode.ERROR.getName(), String.format("doDeliver: No document Found key=[%s]", docKey)))
+                        .map(doc -> doDeliver(msg, doc, msgKey, docKey))
+                        .orElseGet(() -> new FSMDocResult(ResultCode.ERROR.getName(), String.format("doDeliver: No document Found key=[%s]", docKey)))
                 ).orElseGet(() -> new FSMDocResult(ResultCode.ERROR.getName(), String.format("doDeliver: No message Found key=[%s]", msgKey)));
     }
 
 
-    @Transactional
-    private FSMDocResult prepareAperakResponse(AperakDto aperakDto) {
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
+    private FSMDocResult prepareNotifyAperak(AperakDto aperakDto) {
+        FsmMsg msg = getFsmMsg(aperakDto);
+
         return fsmMsgRepository.findBySenderAndDocTypeAndDocNumAndDocVersion(aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion())
-                .map(msg ->
-                    doAperakResponse(aperakDto, msg)
+                .map(originalMsg ->
+                        doNotifyAperak(aperakDto, originalMsg, msg)
                 ).orElseGet(() ->
-                    new FSMDocResult(ResultCode.ERROR.getName(), String.format("prepareAperakResponse: Original message not found: sender(%s), docType(%s), docNum(%s), docVersion(%s)", aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion()))
+                        new FSMDocResult(ResultCode.ERROR.getName(), String.format("prepareNotifyAperak: Original message not found: sender(%s), docType(%s), docNum(%s), docVersion(%s)", aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion()))
                 );
     }
 
-    private FSMDocResult doAperakResponse(AperakDto aperakDto, FsmMsg msg) {
-        msg.setState(MsgStateCode.ACKNOWLEDGED.getName());
-
-        // TODO check aperak function and update origina msg and doc/ver
-
-        fsmMsgRepository.save(msg);
-        return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("prepareAperakResponse: aperak added ok sender(%s), docType(%s), docNum(%s), docVersion(%s)", aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion()));
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
+    private FSMDocResult prepareDeliverAperak(AperakDto aperakDto) {
+        FsmMsg aperakMsg = getFsmMsg(aperakDto);
+        aperakMsg.setState(MsgStateCode.DELIVERED.getName());
+        return fsmMsgRepository.findBySenderAndDocTypeAndDocNumAndDocVersion(aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion())
+                .map(originalMsg ->
+                        doDeliverAperak(aperakDto, originalMsg, aperakMsg)
+                ).orElseGet(() ->
+                        new FSMDocResult(ResultCode.ERROR.getName(), String.format("prepareNotifyAperak: Original message not found: sender(%s), docType(%s), docNum(%s), docVersion(%s)", aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion()))
+                );
     }
+
 
     private FSMDocResult doDeliver(FsmMsg msg, FsmDoc doc, String msgKey, String docKey) {
         if (msg.getState().equals(MsgStateCode.ON_HOLD.getName())) {
@@ -209,6 +226,7 @@ public class DocumentController {
             } else {
                 // update document with new version and carry on with msg processing
                 doc.setDocCurrentVersion(msg.getDocVersion());
+                doc.setState(DocStateCode.PROCESSING.getName());
                 fsmDocRepository.save(doc);
 
                 fsmDocReceiverRepository.deleteByDocumentId(doc.getId());
@@ -261,6 +279,57 @@ public class DocumentController {
         return newDoc;
     }
 
+
+    private FSMDocResult doNotifyAperak(AperakDto aperakDto, FsmMsg originalMsg, FsmMsg msg) {
+        msg.setState(MsgStateCode.PROCESSING.getName());
+        fsmMsgRepository.save(msg);
+        return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("prepareNotifyAperak: aperak is beeing processed, key:  originalMessageSender(%s), docType(%s), docNum(%s), docVersion(%s)",
+                aperakDto.getReceiver(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion()));
+    }
+
+
+    private FSMDocResult doDeliverAperak(AperakDto aperakDto, FsmMsg originalMsg, FsmMsg aperakMsg) {
+        String aperakFunc = aperakDto.getMsgFunction();
+        String aperakType = aperakDto.getAperakType();
+        aperakMsg.setState(MsgStateCode.DELIVERED.getName());
+        // if it's an error aperak generated by the platform, then the original message should be marked as error.
+        if (aperakType.equals(AperakFunctionCode.APERAK_ERROR.getName()) &&
+                aperakFunc.equals(AperakFunctionCode.REJECTED.getName())) {
+            originalMsg.setState(MsgStateCode.ERROR.getName());
+        } else if (aperakType.equals(AperakFunctionCode.APERAK_RESPONSE.getName()) &&
+                (aperakFunc.equals(AperakFunctionCode.ACKNOWLEDGED.getName()) ||
+                        aperakFunc.equals(AperakFunctionCode.NOTIFIED.getName()))) {
+            originalMsg.setState(MsgStateCode.CONFIRMED.getName());
+        } else if (aperakType.equals(AperakFunctionCode.APERAK_RESPONSE.getName()) &&
+                aperakFunc.equals(AperakFunctionCode.REJECTED.getName())) {
+            originalMsg.setState(MsgStateCode.ACKNOWLEDGED.getName());
+        } else if (aperakType.equals(AperakFunctionCode.APERAK_RESPONSE.getName()) &&
+                aperakFunc.equals(AperakFunctionCode.ACCEPTED.getName())) {
+            originalMsg.setState(MsgStateCode.ACKNOWLEDGED.getName());
+        } else {
+            originalMsg.setState(MsgStateCode.ERROR.getName());
+        }
+        fsmMsgRepository.save(aperakMsg);
+        fsmMsgRepository.save(originalMsg);
+        String docKey = makeDocKey(aperakDto.getReceiver(), aperakDto.getDocType(), aperakDto.getDocNum());
+        return fsmDocRepository.findByKey(docKey)
+                .map(fsmDoc -> processAperak(aperakMsg, originalMsg, fsmDoc, aperakType, aperakFunc))
+                .orElseGet(() ->
+                     new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("doDeliverAperak: aperak delivered, keys: originalMsgSender(%s), aperakSender(%s), docType(%s), docNum(%s), docVersion(%s)",
+                             aperakDto.getReceiver(), aperakDto.getSender(), aperakDto.getRefDocType(), aperakDto.getRefDocNum(), aperakDto.getRefDocVersion())
+                ));
+    }
+
+    private FSMDocResult processAperak(FsmMsg aperakMsg, FsmMsg originalMsg, FsmDoc fsmDoc, String aperakType, String aperakFunc) {
+        fsmMsgRepository.save(originalMsg);
+        fsmMsgRepository.save(aperakMsg);
+
+        // TODO update Document state!!!
+
+        return new FSMDocResult(ResultCode.SUCCESS.getName(), String.format("doDeliverAperak: aperak delivered, keys: originalMsgSender(%s), aperakSender(%s), msgKey(%s)",
+                aperakMsg.getReceiver(), aperakMsg.getSender(), aperakMsg.getKey()));
+    }
+
     private String makeDocKey(String sender, String docType, String docNum) {
         return String.format("%s###%s###%s", sender, docType, docNum);
     }
@@ -279,6 +348,29 @@ public class DocumentController {
         private final String name;
 
         private FunctionCode(final String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+    }
+
+    public enum AperakFunctionCode {
+        // 963 + 27 => error RESPONSE
+        // 962 + 27 => REJECTION RESPONSE
+        // 962 + 44 => accepted response
+        // 962 + 11 => ACK response
+        APERAK_ERROR("963"),
+        APERAK_RESPONSE("962"),
+        REJECTED("27"),
+        ACCEPTED("44"),
+        NOTIFIED("55"),
+        ACKNOWLEDGED("11");
+
+        private final String name;
+
+        private AperakFunctionCode(final String name) {
             this.name = name;
         }
 

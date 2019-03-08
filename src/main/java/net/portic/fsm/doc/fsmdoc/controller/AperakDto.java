@@ -1,18 +1,10 @@
 package net.portic.fsm.doc.fsmdoc.controller;
 
 public class AperakDto extends MsgDto {
-    String aperakFunction;
     String refDocNum;
     String refDocVersion;
     String refDocType;
-
-    public String getAperakFunction() {
-        return aperakFunction;
-    }
-
-    public void setAperakFunction(String aperakFunction) {
-        this.aperakFunction = aperakFunction;
-    }
+    String aperakType;
 
     public String getRefDocNum() {
         return refDocNum;
@@ -36,5 +28,13 @@ public class AperakDto extends MsgDto {
 
     public void setRefDocType(String refDocType) {
         this.refDocType = refDocType;
+    }
+
+    public String getAperakType() {
+        return aperakType;
+    }
+
+    public void setAperakType(String aperakType) {
+        this.aperakType = aperakType;
     }
 }

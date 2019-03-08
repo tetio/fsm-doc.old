@@ -10,13 +10,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 @SpringBootApplication
 @EnableJpaAuditing
 @PropertySource({ "classpath:application-${PORTIC_ENV}.properties" })
-//public class FsmDocApplication {
-//
-//	public static void main(String[] args) {
-//		SpringApplication.run(FsmDocApplication.class, args);
-//	}
-//
-//}
 public class FsmDocApplication extends SpringBootServletInitializer {
 	@Override
 	protected SpringApplicationBuilder configure(SpringApplicationBuilder application) {
