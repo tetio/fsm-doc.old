@@ -8,6 +8,10 @@ clean package -Pwar
 en l'entorn d'execició del tomcat/liberty
 export PORTIC_ENV=local
 
+Run terminal debug
+===================
+mvn spring-boot:run -Pjar -Dspring-boot.run.jvmArguments="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=5005"
+
 -------------------
 
 ./mvnw install dockerfile:build
