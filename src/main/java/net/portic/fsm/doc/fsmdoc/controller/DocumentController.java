@@ -3,16 +3,10 @@ package net.portic.fsm.doc.fsmdoc.controller;
 import net.portic.fsm.doc.fsmdoc.controller.dto.AperakDto;
 import net.portic.fsm.doc.fsmdoc.controller.dto.FSMDocResult;
 import net.portic.fsm.doc.fsmdoc.controller.dto.MsgDto;
-import net.portic.fsm.doc.fsmdoc.exception.ResourceNotFoundException;
 import net.portic.fsm.doc.fsmdoc.model.FsmDoc;
-import net.portic.fsm.doc.fsmdoc.model.FsmDocReceiver;
-import net.portic.fsm.doc.fsmdoc.model.FsmMsg;
 import net.portic.fsm.doc.fsmdoc.service.FsmServices;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.*;
-
-import javax.transaction.Transactional;
 import java.util.List;
 
 @RestController
