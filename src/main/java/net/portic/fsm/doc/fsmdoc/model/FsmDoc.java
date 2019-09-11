@@ -1,9 +1,12 @@
 package net.portic.fsm.doc.fsmdoc.model;
 
+import lombok.Data;
+
 import javax.persistence.*;
 import java.util.ArrayList;
 import java.util.List;
 
+@Data
 @Entity
 @Table(name = "fsm_doc")
 public class FsmDoc extends AuditModel {
@@ -41,68 +44,4 @@ public class FsmDoc extends AuditModel {
 //    history: DocumentHistory[]
 //    rejectionErrors: string[]
 
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    public void setKey(String key) {
-        this.key = key;
-    }
-
-    public String getDocType() {
-        return docType;
-    }
-
-    public void setDocType(String docType) {
-        this.docType = docType;
-    }
-
-    public String getDocNum() {
-        return docNum;
-    }
-
-    public void setDocNum(String docNum) {
-        this.docNum = docNum;
-    }
-
-    public String getDocCurrentVersion() {
-        return docCurrentVersion;
-    }
-
-    public void setDocCurrentVersion(String docCurrentVersion) {
-        this.docCurrentVersion = docCurrentVersion;
-    }
-
-    public String getSender() {
-        return sender;
-    }
-
-    public void setSender(String sender) {
-        this.sender = sender;
-    }
-
-    public String getState() {
-        return state;
-    }
-
-    public void setState(String state) {
-        this.state = state;
-    }
-
-    public List<FsmDocReceiver> getFsmDocReceivers() {
-        return fsmDocReceivers;
-    }
-
-    public void setFsmDocReceivers(List<FsmDocReceiver> fsmDocReceivers) {
-        this.fsmDocReceivers = fsmDocReceivers;
-    }
 }

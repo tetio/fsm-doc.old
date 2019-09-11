@@ -10,6 +10,7 @@ import net.portic.fsm.doc.fsmdoc.model.FsmMsg;
 import net.portic.fsm.doc.fsmdoc.repository.FsmDocReceiverRepository;
 import net.portic.fsm.doc.fsmdoc.repository.FsmDocRepository;
 import net.portic.fsm.doc.fsmdoc.repository.FsmMsgRepository;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -38,27 +39,28 @@ public class FsmServices {
 
     }
 
-    //@Transactional(Transactional.TxType.REQUIRES_NEW)
     public FSMDocResult prepareNotify(MsgDto msgDto) {
         FSMDocResult result;
         String docKey = makeDocKey(msgDto.getSender(), msgDto.getDocType(), msgDto.getDocNum());
         FsmMsg msg = getFsmMsg(msgDto);
         try {
-            result = processDocument(docKey, msg);
+            result = prepareDocument(docKey, msg);
         } catch (DataIntegrityViolationException e) {
 //            Caused by: org.postgresql.util.PSQLException: ERROR: duplicate key value violates unique constraint "uk_hq0ox5o2fsu70lvamkq04ht3g"
 //            Detail: Key (key)=(ESA787878###COPINOE04###23383073) already exists.
             // Race condition, no doc existed and at least two messages tried to create the new document simultaneously
+            return prepareNotify(msgDto);
+        } catch(ConstraintViolationException ex) {
+            // ORA-00001: unique constraint (PORTIC.UK_HQ0OX5O2FSU70LVAMKQ04HT3G) violated
             return prepareNotify(msgDto);
         }
         return result;
     }
 
     @Transactional(Transactional.TxType.REQUIRES_NEW)
-    private FSMDocResult processDocument(String docKey, FsmMsg msg) {
+    private FSMDocResult prepareDocument(String docKey, FsmMsg msg) {
         FSMDocResult result;
         result = fsmDocRepository.findByKey(docKey)
-                // why? .map(fsmDoc -> processDocument(msg, fsmDocRepository.save(fsmDoc)))
                 .map(fsmDoc -> processDocument(msg, fsmDoc))
                 .orElseGet(() -> processNewDocument(msg, fsmDocRepository.save(newFsmDoc(msg, docKey))));
         return result;

@@ -1,8 +1,11 @@
 package net.portic.fsm.doc.fsmdoc.model;
 
+import lombok.Data;
+
 import javax.persistence.*;
 import java.util.Date;
 
+@Data
 @Entity
 @Table(name = "fsm_msg")
 public class FsmMsg extends AuditModel{
@@ -51,107 +54,4 @@ public class FsmMsg extends AuditModel{
     @Column(name = "reprocessed")
     private Boolean reprocessed = false;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    public void setKey(String key) {
-        this.key = key;
-    }
-
-    public String getMsgFunction() {
-        return msgFunction;
-    }
-
-    public void setMsgFunction(String msgFunction) {
-        this.msgFunction = msgFunction;
-    }
-
-    public String getDocNum() {
-        return docNum;
-    }
-
-    public void setDocNum(String docNum) {
-        this.docNum = docNum;
-    }
-
-    public String getDocVersion() {
-        return docVersion;
-    }
-
-    public void setDocVersion(String docVersion) {
-        this.docVersion = docVersion;
-    }
-
-    public String getSender() {
-        return sender;
-    }
-
-    public void setSender(String sender) {
-        this.sender = sender;
-    }
-
-    public String getDocType() {
-        return docType;
-    }
-
-    public void setDocType(String docType) {
-        this.docType = docType;
-    }
-
-    public String getReceiver() {
-        return receiver;
-    }
-
-    public void setReceiver(String receiver) {
-        this.receiver = receiver;
-    }
-
-    public String getTrackId() {
-        return trackId;
-    }
-
-    public void setTrackId(String trackId) {
-        this.trackId = trackId;
-    }
-
-    public String getMsgNum() {
-        return msgNum;
-    }
-
-    public void setMsgNum(String msgNum) {
-        this.msgNum = msgNum;
-    }
-
-    public Date getMsgDate() {
-        return msgDate;
-    }
-
-    public void setMsgDate(Date msgDate) {
-        this.msgDate = msgDate;
-    }
-
-    public Boolean getReprocessed() {
-        return reprocessed;
-    }
-
-    public void setReprocessed(Boolean reprocessed) {
-        this.reprocessed = reprocessed;
-    }
-
-    public String getState() {
-        return state;
-    }
-
-    public void setState(String state) {
-        this.state = state;
-    }
 }
